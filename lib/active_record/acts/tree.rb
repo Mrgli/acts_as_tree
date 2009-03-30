@@ -40,21 +40,46 @@ module ActiveRecord
         # * <tt>order</tt> - makes it possible to sort the children according to this SQL snippet.
         # * <tt>counter_cache</tt> - keeps a count in a +children_count+ column if set to +true+ (default: +false+).
         def acts_as_tree(options = {})
-          configuration = { :foreign_key => "parent_id", :order => nil, :counter_cache => nil }
+          @aat_name = options[:name].nil? ? "" : "#{options[:name]}_"
+          configuration = { :foreign_key => "#{@aat_name}parent_id", :order => nil, :counter_cache => nil, :name => nil }
           configuration.update(options) if options.is_a?(Hash)
 
-          belongs_to :parent, :class_name => name, :foreign_key => configuration[:foreign_key], :counter_cache => configuration[:counter_cache]
-          has_many :children, :class_name => name, :foreign_key => configuration[:foreign_key], :order => configuration[:order], :dependent => :destroy
+          parent = "#{@aat_name}parent".to_sym
+          children = "#{@aat_name}children".to_sym
+          belongs_to parent, :class_name => name, :foreign_key => configuration[:foreign_key], :counter_cache => configuration[:counter_cache]
+          has_many children, :class_name => name, :foreign_key => configuration[:foreign_key], :order => configuration[:order], :dependent => :destroy
 
           class_eval <<-EOV
             include ActiveRecord::Acts::Tree::InstanceMethods
 
-            def self.roots
+            def self.#{@aat_name}roots
               find(:all, :conditions => "#{configuration[:foreign_key]} IS NULL", :order => #{configuration[:order].nil? ? "nil" : %Q{"#{configuration[:order]}"}})
             end
 
-            def self.root
+            def self.#{@aat_name}root
               find(:first, :conditions => "#{configuration[:foreign_key]} IS NULL", :order => #{configuration[:order].nil? ? "nil" : %Q{"#{configuration[:order]}"}})
+            end
+
+            if #{@aat_name.any?}
+              def #{@aat_name}ancestors
+                node, nodes = self, []
+                nodes << node = node.#{@aat_name}parent while node.#{@aat_name}parent
+                nodes
+              end
+
+              def #{@aat_name}root
+                node = self
+                node = node.#{@aat_name}parent while node.#{@aat_name}parent
+                node
+              end
+
+              def #{@aat_name}self_and_siblings
+                #{@aat_name}parent ? #{@aat_name}parent.#{@aat_name}children : self.class.#{@aat_name}roots
+              end
+
+              def #{@aat_name}siblings
+                #{@aat_name}self_and_siblings - [self]
+              end
             end
           EOV
         end

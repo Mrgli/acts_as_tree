@@ -31,6 +31,10 @@ def setup_db
       t.column :type, :string
       t.column :parent_id, :integer
     end
+    create_table :example_mixins do |t|
+      t.column :type, :string
+      t.column :example_parent_id, :integer
+    end
   end
 end
 
@@ -217,3 +221,103 @@ class TreeTestWithoutOrder < Test::Unit::TestCase
     assert_equal [], [@root1, @root2] - TreeMixinWithoutOrder.roots
   end
 end 
+
+class ExampleMixin < ActiveRecord::Base
+end
+
+class ExampleTreeMixin < ExampleMixin 
+  acts_as_tree :name => 'example'
+end
+
+class NamedTreeTest < Test::Unit::TestCase
+  
+  def setup
+    setup_db
+    @root1 = ExampleTreeMixin.create!
+    @root_child1 = ExampleTreeMixin.create! :example_parent_id => @root1.id
+    @child1_child = ExampleTreeMixin.create! :example_parent_id => @root_child1.id
+    @root_child2 = ExampleTreeMixin.create! :example_parent_id => @root1.id
+    @root2 = ExampleTreeMixin.create!
+    @root3 = ExampleTreeMixin.create!
+  end
+
+  def teardown
+    teardown_db
+  end
+
+  def test_children
+    assert_equal @root1.example_children, [@root_child1, @root_child2]
+    assert_equal @root_child1.example_children, [@child1_child]
+    assert_equal @child1_child.example_children, []
+    assert_equal @root_child2.example_children, []
+  end
+
+  def test_parent
+    assert_equal @root_child1.example_parent, @root1
+    assert_equal @root_child1.example_parent, @root_child2.example_parent
+    assert_nil @root1.example_parent
+  end
+
+  def test_delete
+    assert_equal 6, ExampleTreeMixin.count
+    @root1.destroy
+    assert_equal 2, ExampleTreeMixin.count
+    @root2.destroy
+    @root3.destroy
+    assert_equal 0, ExampleTreeMixin.count
+  end
+
+  def test_insert
+    @extra = @root1.example_children.create
+
+    assert @extra
+
+    assert_equal @extra.example_parent, @root1
+
+    assert_equal 3, @root1.example_children.size
+    assert @root1.example_children.include?(@extra)
+    assert @root1.example_children.include?(@root_child1)
+    assert @root1.example_children.include?(@root_child2)
+  end
+
+  def test_ancestors
+    assert_equal [], @root1.example_ancestors
+    assert_equal [@root1], @root_child1.example_ancestors
+    assert_equal [@root_child1, @root1], @child1_child.example_ancestors
+    assert_equal [@root1], @root_child2.example_ancestors
+    assert_equal [], @root2.example_ancestors
+    assert_equal [], @root3.example_ancestors
+  end
+
+  def test_root
+    assert_equal @root1, ExampleTreeMixin.example_root
+    assert_equal @root1, @root1.example_root
+    assert_equal @root1, @root_child1.example_root
+    assert_equal @root1, @child1_child.example_root
+    assert_equal @root1, @root_child2.example_root
+    assert_equal @root2, @root2.example_root
+    assert_equal @root3, @root3.example_root
+  end
+
+  def test_roots
+    assert_equal [@root1, @root2, @root3], ExampleTreeMixin.example_roots
+  end
+
+  def test_siblings
+    assert_equal [@root2, @root3], @root1.example_siblings
+    assert_equal [@root_child2], @root_child1.example_siblings
+    assert_equal [], @child1_child.example_siblings
+    assert_equal [@root_child1], @root_child2.example_siblings
+    assert_equal [@root1, @root3], @root2.example_siblings
+    assert_equal [@root1, @root2], @root3.example_siblings
+  end
+
+  def test_self_and_siblings
+    assert_equal [@root1, @root2, @root3], @root1.example_self_and_siblings
+    assert_equal [@root_child1, @root_child2], @root_child1.example_self_and_siblings
+    assert_equal [@child1_child], @child1_child.example_self_and_siblings
+    assert_equal [@root_child1, @root_child2], @root_child2.example_self_and_siblings
+    assert_equal [@root1, @root2, @root3], @root2.example_self_and_siblings
+    assert_equal [@root1, @root2, @root3], @root3.example_self_and_siblings
+  end           
+end
