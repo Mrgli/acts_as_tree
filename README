@@ -23,4 +23,24 @@ association. This requires that you have a foreign key column, which by default 
   root.children # => [child1]
   root.children.first.children.first # => subchild1
 
+More than one tree can be specified in a model with the :name option passed
+to acts_as_tress.  Named name is prepended to to all basic variable names.
+
+  class Biology < ActiveRecord::Base
+    # life, domain, kingdom, phylum, order, family, genus, species
+    acts_as_tree :name => "taxonomic" # default fk taxonomic_parent_id
+    #kingdom: Animalia, Platyzoa
+    acts_as_tree :name => "animalia"
+  end
+
+  bio = Biology.create
+
+  life = bio.taxonomic_children.create("name" => 'life')
+  domain = life.taxonomic_children.create("name" => 'domain')
+  life == bio.taxonomic_root # true
+  
+  animalia = bio.animalia_children.create("name" => 'Animalia')
+  platyzoa = animalia.animalia_children.create("name" => 'Platyzoa')
+  animalia.animalia_self_and_siblings = [animalia, platyzoa] # true
+
 Copyright (c) 2007 David Heinemeier Hansson, released under the MIT license  
