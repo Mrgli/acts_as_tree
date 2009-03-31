@@ -10,6 +10,7 @@ module ActiveRecord
       #
       #   class Category < ActiveRecord::Base
       #     acts_as_tree :order => "name"
+      #     acts_as_tree :order => "example"
       #   end
       #
       #   Example:
@@ -27,6 +28,9 @@ module ActiveRecord
       #   root.children # => [child1]
       #   root.children.first.children.first # => subchild1
       #
+      #   example    = root.example_children.create("name" => "example")
+      #   example == root.example_root # true
+      #
       # In addition to the parent and children associations, the following instance methods are added to the class
       # after calling <tt>acts_as_tree</tt>:
       # * <tt>siblings</tt> - Returns all the children of the parent, excluding the current node (<tt>[subchild2]</tt> when called on <tt>subchild1</tt>)
@@ -39,6 +43,7 @@ module ActiveRecord
         # * <tt>foreign_key</tt> - specifies the column name to use for tracking of the tree (default: +parent_id+)
         # * <tt>order</tt> - makes it possible to sort the children according to this SQL snippet.
         # * <tt>counter_cache</tt> - keeps a count in a +children_count+ column if set to +true+ (default: +false+).
+        # * <tt>name</tt> - allows for multiple named trees on one model, see README
         def acts_as_tree(options = {})
           @aat_name = options[:name].nil? ? "" : "#{options[:name]}_"
           configuration = { :foreign_key => "#{@aat_name}parent_id", :order => nil, :counter_cache => nil, :name => nil }
@@ -50,7 +55,9 @@ module ActiveRecord
           has_many children, :class_name => name, :foreign_key => configuration[:foreign_key], :order => configuration[:order], :dependent => :destroy
 
           class_eval <<-EOV
-            include ActiveRecord::Acts::Tree::InstanceMethods
+            if #{@aat_name.blank?}
+              include ActiveRecord::Acts::Tree::InstanceMethods
+            end
 
             def self.#{@aat_name}roots
               find(:all, :conditions => "#{configuration[:foreign_key]} IS NULL", :order => #{configuration[:order].nil? ? "nil" : %Q{"#{configuration[:order]}"}})
